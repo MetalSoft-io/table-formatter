@@ -1,6 +1,6 @@
 # golang table formatter
 
-[![GoDoc](https://godoc.org/github.com/metalsoft-io/table-formatter?status.svg)](https://godoc.org/github.com/metalsoft-io/table-formatter)
+[![GoDoc](https://godoc.org/github.com/metalsoft-io/tableformatter?status.svg)](https://godoc.org/github.com/metalsoft-io/tableformatter)
 
 Utility to print pretty text (ASCII) tables. It supports:
 
