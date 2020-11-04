@@ -19,8 +19,8 @@ script:
 - go test
 branches:
    only:
-  - master
-  - "/v\\d+\\.\\d+(\\-[a-z])?/"
+    - master
+    - "/v\\d+\\.\\d+(\\-[a-z])?/"
 matrix:
   fast_finish: true
   allow_failures:
