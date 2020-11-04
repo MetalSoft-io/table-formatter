@@ -6,12 +6,10 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
+
 	"time"
 
 	"github.com/iancoleman/strcase"
@@ -182,46 +180,6 @@ func (ms *MultiSorter) OrderBy(fieldNames ...string) *MultiSorter {
 	}
 
 	return ms
-}
-
-//ConsoleIOChannel represents an IO channel, typically stdin and stdout but could be anything
-type ConsoleIOChannel struct {
-	Stdin  io.Reader
-	Stdout io.Writer
-}
-
-var consoleIOChannelInstance ConsoleIOChannel
-
-var once sync.Once
-
-//GetConsoleIOChannel returns the console channel singleton
-func GetConsoleIOChannel() *ConsoleIOChannel {
-	once.Do(func() {
-
-		consoleIOChannelInstance = ConsoleIOChannel{
-			Stdin:  os.Stdin,
-			Stdout: os.Stdout,
-		}
-	})
-
-	return &consoleIOChannelInstance
-}
-
-//GetStdout returns the configured output channel
-func GetStdout() io.Writer {
-	return GetConsoleIOChannel().Stdout
-}
-
-//GetStdin returns the configured input channel
-func GetStdin() io.Reader {
-	return GetConsoleIOChannel().Stdin
-}
-
-//SetConsoleIOChannel configures the stdin and stdout to be used by all io with
-func SetConsoleIOChannel(in io.Reader, out io.Writer) {
-	channel := GetConsoleIOChannel()
-	channel.Stdin = in
-	channel.Stdout = out
 }
 
 //getTableHeader returns the row for header (all cells strings but of the length specified in the schema)
