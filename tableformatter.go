@@ -270,6 +270,7 @@ func getTableRow(row []interface{}, schema []SchemaField) string {
 				rowHeight = len(multiLineCell)
 			}
 			rowStr = append(rowStr, multiLineCell)
+
 		case TypeFloat:
 			rowStr = append(rowStr, []string{fmt.Sprintf(fmt.Sprintf(" %%-%d.%df", field.FieldSize, field.FieldPrecision), row[i].(float64))})
 		default:
@@ -330,7 +331,15 @@ func getCellSize(d interface{}, field *SchemaField) int {
 		s = fmt.Sprintf("%v", d)
 
 	}
-	return len(s)
+	//if multi-line measure the widest string in array
+	splittedS := strings.Split(s, "\n")
+	maxW := 0
+	for _, w := range splittedS {
+		if maxW < len(w) {
+			maxW = len(w)
+		}
+	}
+	return maxW
 }
 
 //getRowSize returns the row size of a table

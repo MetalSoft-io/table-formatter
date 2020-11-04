@@ -79,4 +79,10 @@ func main() {
 	}
 	fmt.Printf("%s", s)
 
+	s, err = table.RenderTableFoldable("employees", "Employee list:", "text", 10)
+	if err != nil {
+		fmt.Printf("%+v", err)
+	}
+	fmt.Printf("%s", s)
+
 }

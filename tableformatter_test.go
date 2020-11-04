@@ -521,13 +521,13 @@ func TestAdjustFieldSizes(t *testing.T) {
 	data := [][]interface{}{
 		{4, "12345", 20.1, "tes"},
 		{5, "12", 22.1, "te"},
-		{6, "123456789", 1.2345, "t"},
+		{6, "12345\n6789", 1.2345, "t"},
 	}
 	table := Table{data, schema}
 	table.AdjustFieldSizes()
 
 	Expect(schema[0].FieldSize).To(Equal(3))
-	Expect(schema[1].FieldSize).To(Equal(10))
+	Expect(schema[1].FieldSize).To(Equal(5))
 	Expect(schema[2].FieldSize).To(Equal(8))
 	//test if expands with LABEl
 	Expect(schema[3].FieldSize).To(Equal(21))
@@ -1004,25 +1004,25 @@ func TestGetFoldedTableAsString(t *testing.T) {
 	}
 
 	expected :=
-		`+---------------------------------------------------------------------+
-| Values                                                              |
-+---------------------------------------------------------------------+
-| - id: 4                                                             |
-|   inst: 20.1                                                        |
-|   label: "12345"                                                    |
-|   veryLongFieldName: tes                                            |
-|                                                                     |
-| - id: 5                                                             |
-|   inst: 22.1                                                        |
-|   label: "12"                                                       |
-|   veryLongFieldName: te                                             |
-|                                                                     |
-| - id: 6                                                             |
-|   inst: 1.2345                                                      |
-|   label: "123456789"                                                |
-|   veryLongFieldName: t                                              |
-|                                                                     |
-+---------------------------------------------------------------------+
+		`+--------------------------+
+| Values                   |
++--------------------------+
+| - id: 4                  |
+|   inst: 20.1             |
+|   label: "12345"         |
+|   veryLongFieldName: tes |
+|                          |
+| - id: 5                  |
+|   inst: 22.1             |
+|   label: "12"            |
+|   veryLongFieldName: te  |
+|                          |
+| - id: 6                  |
+|   inst: 1.2345           |
+|   label: "123456789"     |
+|   veryLongFieldName: t   |
+|                          |
++--------------------------+
 `
 
 	s, err := getFoldedTableAsString(data, schema)
