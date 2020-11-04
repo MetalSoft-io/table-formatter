@@ -20,7 +20,6 @@ script:
 branches:
    only:
   - master
-  - main
   - "/v\\d+\\.\\d+(\\-[a-z])?/"
 matrix:
   fast_finish: true
