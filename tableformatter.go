@@ -581,10 +581,10 @@ func TransposeTable(t Table) Table {
 }
 
 //ConvertToStringTable converts all cells to string cells
-func ConvertToStringTable(data [][]interface{}) [][]interface{} {
+func ConvertToStringTable(table Table) Table {
 	dataS := [][]interface{}{}
 
-	for _, row := range data {
+	for _, row := range table.Data {
 		newRow := []interface{}{}
 		for _, v := range row {
 			if v == nil {
@@ -594,7 +594,11 @@ func ConvertToStringTable(data [][]interface{}) [][]interface{} {
 		}
 		dataS = append(dataS, newRow)
 	}
-	return dataS
+	newTable := Table{
+		Data:   dataS,
+		Schema: table.Schema,
+	}
+	return newTable
 }
 
 //RenderTransposedTable renders the text format as a key-value table. json and csv formats remain the same as render table
@@ -610,10 +614,11 @@ func (t *Table) RenderTransposedTable(tableName string, topLine string, format s
 		headerRow = append(headerRow, s.FieldName)
 	}
 
-	dataAsStrings := ConvertToStringTable(t.Data)
+	stringsTable := ConvertToStringTable(*t)
+
 	newDataAsStrings := [][]interface{}{}
 	newDataAsStrings = append(newDataAsStrings, headerRow)
-	for _, row := range dataAsStrings {
+	for _, row := range stringsTable.Data {
 		newDataAsStrings = append(newDataAsStrings, row)
 	}
 

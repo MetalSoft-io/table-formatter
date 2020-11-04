@@ -719,8 +719,11 @@ func TestConvertToStringTable(t *testing.T) {
 		{21, "22", 23.3},
 		{31, "32", 33.4},
 	}
-
-	dataT := ConvertToStringTable(data)
+	table := Table{
+		Data:   data,
+		Schema: []SchemaField{},
+	}
+	stringsTable := ConvertToStringTable(table)
 
 	expectedDataT := [][]interface{}{
 		{"11", "12", "13.4"},
@@ -728,7 +731,7 @@ func TestConvertToStringTable(t *testing.T) {
 		{"31", "32", "33.4"},
 	}
 
-	Expect(dataT).Should(Equal(expectedDataT))
+	Expect(stringsTable.Data).Should(Equal(expectedDataT))
 }
 
 func TestRenderTransposedTable(t *testing.T) {
