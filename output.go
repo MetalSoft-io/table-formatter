@@ -267,7 +267,9 @@ func truncateString(s string, length int) string {
 	return ""
 }
 
-func renderTable(tableName string, topLine string, format string, data [][]interface{}, schema []SchemaField) (string, error) {
+//RenderTable renders a table object as a string
+//supported formats: json, csv, yaml
+func RenderTable(tableName string, topLine string, format string, data [][]interface{}, schema []SchemaField) (string, error) {
 	var sb strings.Builder
 
 	switch format {
@@ -305,8 +307,8 @@ func renderTable(tableName string, topLine string, format string, data [][]inter
 	return sb.String(), nil
 }
 
-//transposeTable turns columns into rows. It assumes an uniform length table
-func transposeTable(data [][]interface{}) [][]interface{} {
+//TransposeTable turns columns into rows. It assumes an uniform length table
+func TransposeTable(data [][]interface{}) [][]interface{} {
 
 	dataT := [][]interface{}{}
 
@@ -332,7 +334,8 @@ func transposeTable(data [][]interface{}) [][]interface{} {
 	return dataT
 }
 
-func convertToStringTable(data [][]interface{}) [][]interface{} {
+//ConvertToStringTable converts all cells to string cells
+func ConvertToStringTable(data [][]interface{}) [][]interface{} {
 	dataS := [][]interface{}{}
 
 	for _, row := range data {
@@ -348,11 +351,12 @@ func convertToStringTable(data [][]interface{}) [][]interface{} {
 	return dataS
 }
 
-//renderTransposedTable renders the text format as a key-value table. json and csv formats remain the same as render table
-func renderTransposedTable(tableName string, topLine string, format string, data [][]interface{}, schema []SchemaField) (string, error) {
+//RenderTransposedTable renders the text format as a key-value table. json and csv formats remain the same as render table
+//supported formats: json, csv, yaml
+func RenderTransposedTable(tableName string, topLine string, format string, data [][]interface{}, schema []SchemaField) (string, error) {
 
 	if format != "" {
-		return renderTable(tableName, topLine, format, data, schema)
+		return RenderTable(tableName, topLine, format, data, schema)
 	}
 
 	headerRow := []interface{}{}
@@ -360,14 +364,14 @@ func renderTransposedTable(tableName string, topLine string, format string, data
 		headerRow = append(headerRow, s.FieldName)
 	}
 
-	dataAsStrings := convertToStringTable(data)
+	dataAsStrings := ConvertToStringTable(data)
 	newData := [][]interface{}{}
 	newData = append(newData, headerRow)
 	for _, row := range dataAsStrings {
 		newData = append(newData, row)
 	}
 
-	dataTransposed := transposeTable(newData)
+	dataTransposed := TransposeTable(newData)
 
 	newSchema := []SchemaField{
 		{
@@ -382,12 +386,12 @@ func renderTransposedTable(tableName string, topLine string, format string, data
 		},
 	}
 
-	return renderTable(tableName, topLine, format, dataTransposed, newSchema)
+	return RenderTable(tableName, topLine, format, dataTransposed, newSchema)
 
 }
 
-//renderTransposedTableHumanReadable renders an object in a human readable way
-func renderTransposedTableHumanReadable(tableName string, topLine string, data [][]interface{}, schema []SchemaField) (string, error) {
+//RenderTransposedTableHumanReadable renders an object in a human readable way
+func RenderTransposedTableHumanReadable(tableName string, topLine string, data [][]interface{}, schema []SchemaField) (string, error) {
 
 	headerRow := []interface{}{}
 	for _, s := range schema {
@@ -444,15 +448,14 @@ func NewStripPrefixFormatter(prefix string) *StripPrefixFormatter {
 	return &StripPrefixFormatter{Prefix: prefix}
 }
 
-//objectToTable converts an object into a table directly
+//ObjectToTable converts an object into a table directly
 //without having to manually build the schema and fields
-func objectToTable(obj interface{}) ([]interface{}, []SchemaField, error) {
-	return objectToTableWithFormatter(obj, NewHumanReadableFormatter())
+func ObjectToTable(obj interface{}) ([]interface{}, []SchemaField, error) {
+	return ObjectToTableWithFormatter(obj, NewHumanReadableFormatter())
 }
 
-//objectToTable converts an object into a table directly
-//without having to manually build the schema and fields
-func objectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFormatter) ([]interface{}, []SchemaField, error) {
+//ObjectToTableWithFormatter converts an object into a table directly without having to manually build the schema and fields
+func ObjectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFormatter) ([]interface{}, []SchemaField, error) {
 	var data []interface{}
 	var schema []SchemaField
 
@@ -498,7 +501,8 @@ func objectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFor
 
 }
 
-func renderRawObject(obj interface{}, format string, prefixToStrip string) (string, error) {
+//RenderRawObject renders an object without having to build a schema for it
+func RenderRawObject(obj interface{}, format string, prefixToStrip string) (string, error) {
 
 	switch format {
 	case "json", "JSON":
@@ -508,7 +512,7 @@ func renderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 		}
 		return string(ret), nil
 	case "csv", "CSV":
-		data, schema, err := objectToTableWithFormatter(obj, NewPassThroughFormatter())
+		data, schema, err := ObjectToTableWithFormatter(obj, NewPassThroughFormatter())
 		if err != nil {
 			return "", err
 		}
@@ -524,11 +528,11 @@ func renderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 		}
 		return string(ret), nil
 	default:
-		data, schema, err := objectToTableWithFormatter(obj, NewStripPrefixFormatter(prefixToStrip))
+		data, schema, err := ObjectToTableWithFormatter(obj, NewStripPrefixFormatter(prefixToStrip))
 		if err != nil {
 			return "", err
 		}
-		ret, err := renderTransposedTableHumanReadable("", "", [][]interface{}{data}, schema)
+		ret, err := RenderTransposedTableHumanReadable("", "", [][]interface{}{data}, schema)
 		if err != nil {
 			return "", err
 		}

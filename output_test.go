@@ -310,22 +310,22 @@ func TestRenderTable(t *testing.T) {
 		{6, "123456789", 1.2345, "t"},
 	}
 
-	s, err := renderTable("test", "", "", data, schema)
+	s, err := RenderTable("test", "", "", data, schema)
 
 	Expect(err).To(BeNil())
 	Expect(s).To(ContainSubstring("test"))
 	Expect(s).To(ContainSubstring("VERY LONG"))
 
-	s, err = renderTable("test", "", "json", data, schema)
+	s, err = RenderTable("test", "", "json", data, schema)
 	Expect(err).To(BeNil())
 	var m []interface{}
 	err = json.Unmarshal([]byte(s), &m)
 	Expect(err).To(BeNil())
 
-	s, err = renderTable("test", "", "csv", data, schema)
+	s, err = RenderTable("test", "", "csv", data, schema)
 	Expect(err).To(BeNil())
 
-	s, err = renderTable("test", "", "yaml", data, schema)
+	s, err = RenderTable("test", "", "yaml", data, schema)
 	err = yaml.Unmarshal([]byte(s), &m)
 	Expect(err).To(BeNil())
 }
@@ -443,7 +443,7 @@ func TestTransposeTable(t *testing.T) {
 		{31, 32, 33},
 	}
 
-	dataT := transposeTable(data)
+	dataT := TransposeTable(data)
 
 	expectedDataT := [][]interface{}{
 		{11, 21, 31},
@@ -462,7 +462,7 @@ func TestConvertToStringTable(t *testing.T) {
 		{31, "32", 33.4},
 	}
 
-	dataT := convertToStringTable(data)
+	dataT := ConvertToStringTable(data)
 
 	expectedDataT := [][]interface{}{
 		{"11", "12", "13.4"},
@@ -504,7 +504,7 @@ func TestRenderTransposedTable(t *testing.T) {
 		{4, "12345", 20.1, "tes"},
 	}
 
-	s, err := renderTransposedTable("test", "", "", data, schema)
+	s, err := RenderTransposedTable("test", "", "", data, schema)
 
 	Expect(err).To(BeNil())
 	Expect(s).To(ContainSubstring("KEY"))
@@ -512,13 +512,13 @@ func TestRenderTransposedTable(t *testing.T) {
 	Expect(s).To(ContainSubstring("12345"))
 	Expect(s).To(ContainSubstring("20.1"))
 
-	s, err = renderTransposedTable("test", "", "json", data, schema)
+	s, err = RenderTransposedTable("test", "", "json", data, schema)
 	Expect(err).To(BeNil())
 	var m []interface{}
 	err = json.Unmarshal([]byte(s), &m)
 	Expect(err).To(BeNil())
 
-	s, err = renderTransposedTable("test", "", "csv", data, schema)
+	s, err = RenderTransposedTable("test", "", "csv", data, schema)
 	Expect(err).To(BeNil())
 }
 
@@ -531,7 +531,7 @@ func TestObjectToTable(t *testing.T) {
 	err := json.Unmarshal([]byte(_switchDeviceFixture1), &sw)
 	Expect(err).To(BeNil())
 
-	d, s, err := objectToTable(sw)
+	d, s, err := ObjectToTable(sw)
 	Expect(err).To(BeNil())
 	Expect(len(d)).To(Equal(40))
 	Expect(d[1]).To(Equal("UK_RDG_EVR01_00_0001_00A9_01"))
@@ -548,7 +548,7 @@ func TestObjToTableWithFormatter(t *testing.T) {
 	err := json.Unmarshal([]byte(_switchDeviceFixture1), &sw)
 	Expect(err).To(BeNil())
 
-	d, s, err := objectToTableWithFormatter(sw, NewStripPrefixFormatter("NetworkEquipment"))
+	d, s, err := ObjectToTableWithFormatter(sw, NewStripPrefixFormatter("NetworkEquipment"))
 	Expect(err).To(BeNil())
 	Expect(len(d)).To(Equal(40))
 	Expect(d[1]).To(Equal("UK_RDG_EVR01_00_0001_00A9_01"))
@@ -579,7 +579,7 @@ func TestRenderTransposedTableHumanReadable(t *testing.T) {
 		},
 	}
 
-	s, err := renderTransposedTableHumanReadable("test", "test", data, schema)
+	s, err := RenderTransposedTableHumanReadable("test", "test", data, schema)
 
 	Expect(err).To(BeNil())
 	Expect(s).To(Equal(`Field1: 10
@@ -596,7 +596,7 @@ func TestRenderRawObject(t *testing.T) {
 	err := json.Unmarshal([]byte(_switchDeviceFixture1), &sw)
 	Expect(err).To(BeNil())
 
-	ret, err := renderRawObject(sw, "json", "")
+	ret, err := RenderRawObject(sw, "json", "")
 
 	Expect(err).To(BeNil())
 	Expect(ret).NotTo(BeNil())
@@ -606,17 +606,17 @@ func TestRenderRawObject(t *testing.T) {
 	err = json.Unmarshal([]byte(ret), &sw2)
 	Expect(err).To(BeNil())
 
-	ret, err = renderRawObject(sw, "yaml", "")
+	ret, err = RenderRawObject(sw, "yaml", "")
 	Expect(err).To(BeNil())
 	Expect(ret).NotTo(BeNil())
 	Expect(ret).To(ContainSubstring("2A02:0CB8:0000:0000:0000:0000:0000:0000/53"))
 
-	ret, err = renderRawObject(sw, "csv", "")
+	ret, err = RenderRawObject(sw, "csv", "")
 	Expect(err).To(BeNil())
 	Expect(ret).NotTo(BeNil())
 	Expect(ret).To(ContainSubstring("2A02:0CB8:0000:0000:0000:0000:0000:0000/53"))
 
-	ret, err = renderRawObject(sw, "", "NetworkEquipment")
+	ret, err = RenderRawObject(sw, "", "NetworkEquipment")
 	Expect(err).To(BeNil())
 	Expect(ret).NotTo(BeNil())
 	Expect(ret).To(ContainSubstring("2A02:0CB8:0000:0000:0000:0000:0000:0000/53"))
