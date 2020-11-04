@@ -18,8 +18,10 @@ install:
 script:
 - go test
 branches:
-  only:
+   only:
   - master
+  - main
+  - "/v\\d+\\.\\d+(\\-[a-z])?/"
 matrix:
   fast_finish: true
   allow_failures:
