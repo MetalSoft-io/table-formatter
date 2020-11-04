@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	tableformatter "github.com/metalsoft/tableformatter"
+	"github.com/metalsoft/tableformatter"
 )
 
 func main() {
@@ -58,9 +58,22 @@ func main() {
 			"active",
 			"us-santaclara",
 		},
+		{
+			34,
+			"production-infrastructure\nanother line\nanother line",
+			"john@alex.com",
+			"CTO",
+			"active",
+			"us-santaclara\nmultiline-string",
+		},
 	}
 
-	s, err := tableformatter.RenderTable("employees", "This is the data I have access to", "text", data, schema)
+	table := tableformatter.Table{
+		Data:   data,
+		Schema: schema,
+	}
+
+	s, err := table.RenderTable("employees", "Employee list:", "text")
 	if err != nil {
 		fmt.Printf("%+v", err)
 	}

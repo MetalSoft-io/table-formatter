@@ -20,11 +20,13 @@ import (
 
 //Table represents a table including data and schema
 type Table struct {
-	data   [][]interface{}
-	schema []SchemaField
+	Data   [][]interface{}
+	Schema []SchemaField
 }
 
+const defaultDelimiter = "|"
 const defaultTimeFormat = "2006-01-02T15:04:05Z" //oddly enough this is how you specify a format
+const defaultFoldAtLength = 100
 
 const (
 	//TypeInt is printed as %d
@@ -237,24 +239,81 @@ func getTableHeader(schema []SchemaField) string {
 	return getTableRow(header, alteredSchema)
 }
 
+func emptyString(length int) string {
+	var sb strings.Builder
+	for i := 0; i < length; i++ {
+		sb.WriteString(" ")
+	}
+	return sb.String()
+}
+
 //getTableRow returns the string for a row with the | delimiter
 func getTableRow(row []interface{}, schema []SchemaField) string {
-	var rowStr []string
+	//row[0] is the first cell row[1] second cell row[1][1] is the value of the second row of the second cell
+	//this is to allow multi-line string cells
+	var rowStr [][]string
+	rowHeight := 1
+
 	for i, field := range schema {
 		switch field.FieldType {
 		case TypeInt:
-			rowStr = append(rowStr, fmt.Sprintf(fmt.Sprintf(" %%-%dd", field.FieldSize), row[i].(int)))
+			rowStr = append(rowStr, []string{fmt.Sprintf(fmt.Sprintf(" %%-%dd", field.FieldSize), row[i].(int))})
 		case TypeString:
 			//escape %
 			s := strings.ReplaceAll(row[i].(string), "%", "%%")
-			rowStr = append(rowStr, fmt.Sprintf(fmt.Sprintf(" %%-%ds", field.FieldSize), s))
+			splittedS := strings.Split(s, "\n")
+			multiLineCell := []string{}
+			for _, r := range splittedS {
+				multiLineCell = append(multiLineCell, fmt.Sprintf(fmt.Sprintf(" %%-%ds", field.FieldSize), r))
+			}
+			if rowHeight < len(multiLineCell) {
+				rowHeight = len(multiLineCell)
+			}
+			rowStr = append(rowStr, multiLineCell)
 		case TypeFloat:
-			rowStr = append(rowStr, fmt.Sprintf(fmt.Sprintf(" %%-%d.%df", field.FieldSize, field.FieldPrecision), row[i].(float64)))
+			rowStr = append(rowStr, []string{fmt.Sprintf(fmt.Sprintf(" %%-%d.%df", field.FieldSize, field.FieldPrecision), row[i].(float64))})
 		default:
-			rowStr = append(rowStr, fmt.Sprintf(fmt.Sprintf(" %%-+%dv", field.FieldSize), row[i]))
+			rowStr = append(rowStr, []string{fmt.Sprintf(fmt.Sprintf(" %%-+%dv", field.FieldSize), row[i])})
 		}
 	}
-	return "|" + strings.Join(rowStr, "|") + "|"
+
+	//for each cell fill it to rowHeight with empty strings of length equal to the largest
+	for i, cell := range rowStr {
+		//determine the max width
+		maxWidth := 0
+		for _, s := range cell {
+			if len(s) > maxWidth {
+				maxWidth = len(s)
+			}
+		}
+		newCell := []string{}
+		//adjust sizes to all other fields by padding them with spaces
+		for j := 0; j < len(cell); j++ {
+			newCell = append(newCell, fmt.Sprintf(fmt.Sprintf("%%-%ds", maxWidth), cell[j]))
+		}
+		//fill remainder with empty strings
+		for j := len(cell); j < rowHeight; j++ {
+			newCell = append(newCell, emptyString(maxWidth))
+		}
+		//replace original cell
+		rowStr[i] = newCell
+	}
+
+	var sb strings.Builder
+
+	for y := 0; y < rowHeight; y++ {
+
+		for x := 0; x < len(rowStr); x++ {
+			sb.WriteString(defaultDelimiter)
+			sb.WriteString(rowStr[x][y])
+		}
+		sb.WriteString(defaultDelimiter)
+		if y < rowHeight-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String()
 }
 
 // GetCellSize calculates how wide a cell is by converting it to string and measuring it's size
@@ -275,11 +334,11 @@ func getCellSize(d interface{}, field *SchemaField) int {
 }
 
 //getRowSize returns the row size of a table
-func getRowSize(data [][]interface{}, schema *[]SchemaField) int {
-	rowSize := len(*schema)
+func getRowSize(data [][]interface{}, schema []SchemaField) int {
+	rowSize := len(schema)
 	size := 0
 	for i := 0; i < rowSize; i++ {
-		f := (*schema)[i]
+		f := (schema)[i]
 		size += getCellSize(data[0][i], &f)
 	}
 	return size
@@ -288,12 +347,12 @@ func getRowSize(data [][]interface{}, schema *[]SchemaField) int {
 //AdjustFieldSizes expands field sizes to match the widest cell
 func (t *Table) AdjustFieldSizes() {
 
-	rowSize := len(t.schema)
+	rowSize := len(t.Schema)
 	for i := 0; i < rowSize; i++ {
-		f := t.schema[i]
+		f := t.Schema[i]
 
 		//iterate over the entire column
-		rowCount := len(t.data)
+		rowCount := len(t.Data)
 
 		maxLen := f.FieldSize
 
@@ -302,13 +361,13 @@ func (t *Table) AdjustFieldSizes() {
 		}
 
 		for k := 0; k < rowCount; k++ {
-			cellSize := getCellSize(t.data[k][i], &f)
+			cellSize := getCellSize(t.Data[k][i], &f)
 			if cellSize > maxLen {
 				maxLen = cellSize
 			}
 		}
 		if maxLen > f.FieldSize {
-			t.schema[i].FieldSize = maxLen + 1 //we leave a little room to the right
+			t.Schema[i].FieldSize = maxLen + 1 //we leave a little room to the right
 		}
 	}
 }
@@ -338,6 +397,33 @@ func getTableAsString(data [][]interface{}, schema []SchemaField) string {
 	rows = append(rows, getTableDelimiter(schema))
 
 	return strings.Join(rows, "\n") + "\n"
+}
+
+//getFoldedTableAsString returns the string representation of a table with the fields collapsed
+func getFoldedTableAsString(data [][]interface{}, schema []SchemaField) (string, error) {
+
+	newSchema := []SchemaField{
+		{
+			FieldName: "Values",
+			FieldType: TypeString,
+			FieldSize: 5,
+		},
+	}
+	newData := [][]interface{}{}
+	for _, row := range data {
+
+		cell, err := getTableAsYAMLString([][]interface{}{row}, schema)
+		if err != nil {
+			return "", err
+		}
+		newData = append(newData, []interface{}{cell})
+
+	}
+
+	table := Table{newData, newSchema}
+	table.AdjustFieldSizes()
+
+	return getTableAsString(table.Data, table.Schema), nil
 }
 
 func printTableHeader(schema []SchemaField) {
@@ -448,23 +534,30 @@ func truncateString(s string, length int) string {
 //RenderTable renders a table object as a string
 //supported formats: json, csv, yaml
 func (t *Table) RenderTable(tableName string, topLine string, format string) (string, error) {
+	return t.RenderTableFoldable(tableName, topLine, format, defaultFoldAtLength)
+}
+
+//RenderTableFoldable renders a table object as a string
+//supported formats: json, csv, yaml
+//foldAtLength specifies at which row length to fold the
+func (t *Table) RenderTableFoldable(tableName string, topLine string, format string, foldAtLength int) (string, error) {
 	var sb strings.Builder
 
 	switch format {
 	case "json", "JSON":
-		ret, err := getTableAsJSONString(t.data, t.schema)
+		ret, err := getTableAsJSONString(t.Data, t.Schema)
 		if err != nil {
 			return "", err
 		}
 		sb.WriteString(ret)
 	case "csv", "CSV":
-		ret, err := getTableAsCSVString(t.data, t.schema)
+		ret, err := getTableAsCSVString(t.Data, t.Schema)
 		if err != nil {
 			return "", err
 		}
 		sb.WriteString(ret)
 	case "yaml", "YAML":
-		ret, err := getTableAsYAMLString(t.data, t.schema)
+		ret, err := getTableAsYAMLString(t.Data, t.Schema)
 		if err != nil {
 			return "", err
 		}
@@ -477,29 +570,33 @@ func (t *Table) RenderTable(tableName string, topLine string, format string) (st
 
 		t.AdjustFieldSizes()
 
-		sb.WriteString(getTableAsString(t.data, t.schema))
+		if len(t.Data) > 0 && getRowSize(t.Data, t.Schema) > foldAtLength {
+			s, err := getFoldedTableAsString(t.Data, t.Schema)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(s)
+		} else {
+			sb.WriteString(getTableAsString(t.Data, t.Schema))
+		}
 
-		sb.WriteString(fmt.Sprintf("Total: %d %s\n\n", len(t.data), tableName))
+		sb.WriteString(fmt.Sprintf("Total: %d %s\n\n", len(t.Data), tableName))
 	}
 
 	return sb.String(), nil
 }
 
-func getRowWidth(data []interface{}) {
-
-}
-
 //TransposeTable turns columns into rows. It assumes an uniform length table
-func TransposeTable(data [][]interface{}) [][]interface{} {
+func TransposeTable(t Table) Table {
 
 	dataT := [][]interface{}{}
 
-	if len(data) == 0 {
-		return dataT
+	if len(t.Data) == 0 {
+		return t
 	}
 
-	tableLength := len(data)
-	rowLength := len(data[0])
+	tableLength := len(t.Data)
+	rowLength := len(t.Data[0])
 
 	for j := 0; j < rowLength; j++ {
 
@@ -507,13 +604,13 @@ func TransposeTable(data [][]interface{}) [][]interface{} {
 
 		for i := 0; i < tableLength; i++ {
 
-			newRow = append(newRow, data[i][j])
+			newRow = append(newRow, t.Data[i][j])
 		}
 
 		dataT = append(dataT, newRow)
 	}
-
-	return dataT
+	newTable := Table{dataT, t.Schema}
+	return newTable
 }
 
 //ConvertToStringTable converts all cells to string cells
@@ -542,18 +639,16 @@ func (t *Table) RenderTransposedTable(tableName string, topLine string, format s
 	}
 
 	headerRow := []interface{}{}
-	for _, s := range t.schema {
+	for _, s := range t.Schema {
 		headerRow = append(headerRow, s.FieldName)
 	}
 
-	dataAsStrings := ConvertToStringTable(t.data)
-	newData := [][]interface{}{}
-	newData = append(newData, headerRow)
+	dataAsStrings := ConvertToStringTable(t.Data)
+	newDataAsStrings := [][]interface{}{}
+	newDataAsStrings = append(newDataAsStrings, headerRow)
 	for _, row := range dataAsStrings {
-		newData = append(newData, row)
+		newDataAsStrings = append(newDataAsStrings, row)
 	}
-
-	dataTransposed := TransposeTable(newData)
 
 	newSchema := []SchemaField{
 		{
@@ -568,12 +663,10 @@ func (t *Table) RenderTransposedTable(tableName string, topLine string, format s
 		},
 	}
 
-	newTable := Table{
-		dataTransposed,
-		newSchema,
-	}
+	newTable := Table{newDataAsStrings, newSchema}
+	tableTransposed := TransposeTable(newTable)
 
-	return newTable.RenderTable(tableName, topLine, format)
+	return tableTransposed.RenderTable(tableName, topLine, format)
 
 }
 
@@ -581,13 +674,13 @@ func (t *Table) RenderTransposedTable(tableName string, topLine string, format s
 func (t *Table) RenderTransposedTableHumanReadable(tableName string, topLine string) (string, error) {
 
 	headerRow := []interface{}{}
-	for _, s := range t.schema {
+	for _, s := range t.Schema {
 		headerRow = append(headerRow, s.FieldName)
 	}
 
 	var sb strings.Builder
-	for i, field := range t.schema {
-		sb.WriteString(fmt.Sprintf("%s: %v\n", field.FieldName, t.data[0][i]))
+	for i, field := range t.Schema {
+		sb.WriteString(fmt.Sprintf("%s: %v\n", field.FieldName, t.Data[0][i]))
 	}
 
 	return sb.String(), nil
@@ -704,7 +797,7 @@ func RenderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 		if err != nil {
 			return "", err
 		}
-		ret, err := getTableAsCSVString(t.data, t.schema)
+		ret, err := getTableAsCSVString(t.Data, t.Schema)
 		if err != nil {
 			return "", err
 		}

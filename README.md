@@ -4,23 +4,27 @@ Utility to print pretty text (ASCII) tables. It supports:
 
 * automatic field size adjustment
 * yaml, json, CSV alternative rendering
+* multi-line cells
 
 ```
-This is the data I have access to
-+-------+---------------------------+---------------------+-----------+--------+---------------+
-| ID    | LABEL                     | OWNER               | REL.      | STATUS | DATACENTER    |
-+-------+---------------------------+---------------------+-----------+--------+---------------+
-| 10    | test-infrastructure       | alex@alex.com       | manager   | active | uk-reading    |
-| 20    | production-infrastructure | john@alex.com       | CTO       | active | us-santaclara |
-+-------+---------------------------+---------------------+-----------+--------+---------------+
-Total: 2 testTbl
+Employee list:
++-------+-----------------------------------------------------+---------------------+-----------+--------+--------------------------------+
+| ID    | LABEL                                               | OWNER               | REL.      | STATUS | DATACENTER                     |
++-------+-----------------------------------------------------+---------------------+-----------+--------+--------------------------------+
+| 10    | test-infrastructure                                 | alex@alex.com       | manager   | active | uk-reading                     |
+| 20    | production-infrastructure                           | john@alex.com       | CTO       | active | us-santaclara                  |
+| 34    | production-infrastructure                           | john@alex.com       | CTO       | active | us-santaclara                  |
+|       | another line                                        |                     |           |        | multiline-string               |
+|       | another line                                        |                     |           |        |                                |
++-------+-----------------------------------------------------+---------------------+-----------+--------+--------------------------------+
+Total: 3 employees
 ```
 
 
 ## Example
 
 ```golang
-schema := []tableformatter.SchemaField{
+    schema := []tableformatter.SchemaField{
 		{
 			FieldName: "ID",
 			FieldType: tableformatter.TypeInt,
@@ -70,11 +74,25 @@ schema := []tableformatter.SchemaField{
 			"active",
 			"us-santaclara",
 		},
+		{
+			34,
+			"production-infrastructure\nanother line\nanother line",
+			"john@alex.com",
+			"CTO",
+			"active",
+			"us-santaclara\nmultiline-string",
+		},
 	}
 
-	s, err := tableformatter.RenderTable("employees", "This is the data I have access to", "text", data, schema)
+	table := tableformatter.Table{
+		Data:   data,
+		Schema: schema,
+	}
+
+	s, err := table.RenderTable("employees", "Employee list:", "text")
 	if err != nil {
 		fmt.Printf("%+v", err)
 	}
 	fmt.Printf("%s", s)
+
 ```
