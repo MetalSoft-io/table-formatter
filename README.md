@@ -3,6 +3,7 @@
 [https://travis-ci.org/MetalSoft-io/tableformatter.svg?branch=main]
 [![GoDoc](https://godoc.org/github.com/metalsoft-io/tableformatter?status.svg)](https://godoc.org/github.com/metalsoft-io/tableformatter)
 [![Build Status](https://travis-ci.org/MetalSoft-io/tableformatter.svg?branch=main)](https://travis-ci.org/MetalSoft-io/tableformatter)
+[![Coverage Status](https://coveralls.io/repos/github/MetalSoft-io/tableformatter/badge.svg?branch=main)](https://coveralls.io/github/MetalSoft-io/tableformatter?branch=main)
 
 Utility to print pretty text (ASCII) tables. It supports:
 
