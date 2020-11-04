@@ -1,17 +1,274 @@
 package tableformatter
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"reflect"
 	"testing"
+	"time"
+
+	"encoding/csv"
+
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
 	metalcloud "github.com/bigstepinc/metal-cloud-sdk-go"
 	. "github.com/onsi/gomega"
 )
+
+func TestTableSortWithSchema(t *testing.T) {
+
+	data := [][]interface{}{
+		{4, "str", 20.1},
+		{6, "st11r", 22.1},
+		{5, "wt11r444", 2.3},
+		{5, "wt11r444", 2.1},
+		{5, "at11r43", 2.2},
+		{4, "xxxx", 2.2},
+	}
+
+	schema := []SchemaField{
+		{
+			FieldName: "ID",
+			FieldType: TypeInt,
+			FieldSize: 6,
+		},
+		{
+			FieldName: "LABEL",
+			FieldType: TypeString,
+			FieldSize: 20,
+		},
+		{
+			FieldName:      "INST.",
+			FieldType:      TypeFloat,
+			FieldSize:      6,
+			FieldPrecision: 2,
+		},
+	}
+
+	TableSorter(schema).OrderBy("LABEL", "ID", "INST.").Sort(data)
+
+	expected := [][]interface{}{
+		{5, "at11r43", 2.2},
+		{6, "st11r", 22.1},
+		{4, "str", 20.1},
+		{5, "wt11r444", 2.1},
+		{5, "wt11r444", 2.3},
+		{4, "xxxx", 2.2},
+	}
+
+	if !reflect.DeepEqual(data, expected) {
+		t.Errorf("the sorted array was not correct \nwas:\n%+v\n expected\n %+v\n", data, expected)
+	}
+}
+
+func TestTableSortWithSchemaWithDateTime(t *testing.T) {
+
+	data := [][]interface{}{
+		{4, "str", "2013-11-29T13:00:01Z"},
+		{6, "st11r", "2013-11-29T13:00:02Z"},
+		{6, "st11r", "2014-11-29T13:00:03Z"},
+		{6, "st11r", "2012-11-29T13:00:03Z"},
+	}
+
+	schema := []SchemaField{
+		{
+			FieldName: "ID",
+			FieldType: TypeInt,
+			FieldSize: 6,
+		},
+		{
+			FieldName: "LABEL",
+			FieldType: TypeString,
+			FieldSize: 20,
+		},
+		{
+			FieldName:   "DATE",
+			FieldType:   TypeDateTime,
+			FieldSize:   6,
+			FieldFormat: defaultTimeFormat,
+		},
+	}
+
+	TableSorter(schema).OrderBy("DATE").Sort(data)
+
+	expected := [][]interface{}{
+		{6, "st11r", "2012-11-29T13:00:03Z"},
+		{4, "str", "2013-11-29T13:00:01Z"},
+		{6, "st11r", "2013-11-29T13:00:02Z"},
+		{6, "st11r", "2014-11-29T13:00:03Z"},
+	}
+
+	if !reflect.DeepEqual(data, expected) {
+		t.Errorf("the sorted array was not correct \nwas:\n%+v\n expected\n %+v\n", data, expected)
+	}
+}
+
+func TestDefaultTimeFormat(t *testing.T) {
+
+	layout := defaultTimeFormat
+
+	s := "2012-11-29T13:00:03Z"
+
+	tm, err := time.Parse(layout, s)
+
+	if err != nil {
+		t.Errorf("error converting time string %s", err)
+	}
+
+	if tm.Year() != 2012 || tm.Second() != 3 {
+		t.Error("Date was not parsed correctly")
+	}
+
+}
+
+func TestGetTableAsJSONRegressionTest1(t *testing.T) {
+	RegisterTestingT(t)
+	fw1 := metalcloud.FirewallRule{
+		FirewallRuleDescription:    "test desc",
+		FirewallRuleProtocol:       "tcp",
+		FirewallRulePortRangeStart: 22,
+		FirewallRulePortRangeEnd:   23,
+	}
+
+	fw2 := metalcloud.FirewallRule{
+		FirewallRuleProtocol:       "udp",
+		FirewallRulePortRangeStart: 22,
+		FirewallRulePortRangeEnd:   22,
+	}
+
+	fw3 := metalcloud.FirewallRule{
+		FirewallRuleProtocol:                  "tcp",
+		FirewallRulePortRangeStart:            22,
+		FirewallRulePortRangeEnd:              22,
+		FirewallRuleSourceIPAddressRangeStart: "192.168.0.1",
+		FirewallRuleSourceIPAddressRangeEnd:   "192.168.0.1",
+	}
+
+	fw4 := metalcloud.FirewallRule{
+		FirewallRuleProtocol:                  "tcp",
+		FirewallRulePortRangeStart:            22,
+		FirewallRulePortRangeEnd:              22,
+		FirewallRuleSourceIPAddressRangeStart: "192.168.0.1",
+		FirewallRuleSourceIPAddressRangeEnd:   "192.168.0.100",
+	}
+
+	iao := metalcloud.InstanceArrayOperation{
+		InstanceArrayID:           11,
+		InstanceArrayLabel:        "testia-edited",
+		InstanceArrayDeployType:   "edit",
+		InstanceArrayDeployStatus: "not_started",
+		InstanceArrayFirewallRules: []metalcloud.FirewallRule{
+			fw1,
+			fw2,
+			fw3,
+			fw4,
+		},
+	}
+
+	ia := metalcloud.InstanceArray{
+		InstanceArrayID:            11,
+		InstanceArrayLabel:         "testia",
+		InfrastructureID:           100,
+		InstanceArrayOperation:     &iao,
+		InstanceArrayServiceStatus: "active",
+		InstanceArrayFirewallRules: []metalcloud.FirewallRule{
+			fw1,
+			fw2,
+			fw3,
+			fw4,
+		},
+	}
+
+	list := ia.InstanceArrayOperation.InstanceArrayFirewallRules
+	data := [][]interface{}{}
+	idx := 0
+
+	for _, fw := range list {
+
+		portRange := "any"
+
+		if fw.FirewallRulePortRangeStart != 0 {
+			portRange = fmt.Sprintf("%d", fw.FirewallRulePortRangeStart)
+		}
+
+		if fw.FirewallRulePortRangeStart != fw.FirewallRulePortRangeEnd {
+			portRange += fmt.Sprintf("-%d", fw.FirewallRulePortRangeEnd)
+		}
+
+		sourceIPRange := "any"
+
+		if fw.FirewallRuleSourceIPAddressRangeStart != "" {
+			sourceIPRange = fw.FirewallRuleSourceIPAddressRangeStart
+		}
+
+		if fw.FirewallRuleSourceIPAddressRangeStart != fw.FirewallRuleSourceIPAddressRangeEnd {
+			sourceIPRange += fmt.Sprintf("-%s", fw.FirewallRuleSourceIPAddressRangeEnd)
+		}
+
+		data = append(data, []interface{}{
+			idx,
+			fw.FirewallRuleProtocol,
+			portRange,
+			sourceIPRange,
+			fw.FirewallRuleEnabled,
+			fw.FirewallRuleDescription,
+		})
+
+		idx++
+
+	}
+
+	schema := []SchemaField{
+		{
+			FieldName: "INDEX",
+			FieldType: TypeInt,
+			FieldSize: 6,
+		},
+		{
+			FieldName: "PROTOCOL",
+			FieldType: TypeString,
+			FieldSize: 10,
+		},
+		{
+			FieldName: "PORT",
+			FieldType: TypeString,
+			FieldSize: 10,
+		},
+		{
+			FieldName: "SOURCE",
+			FieldType: TypeString,
+			FieldSize: 20,
+		},
+
+		{
+			FieldName: "ENABLED",
+			FieldType: TypeBool,
+			FieldSize: 10,
+		},
+		{
+			FieldName: "DESC.",
+			FieldType: TypeString,
+			FieldSize: 50,
+		},
+	}
+
+	Expect(data[0][0]).NotTo(Equal(data[0][1]))
+	Expect(data[0][1]).NotTo(Equal(data[0][2]))
+	Expect(data[0][1]).NotTo(Equal(data[0][2]))
+
+	ret, err := getTableAsJSONString(data, schema)
+	Expect(err).To(BeNil())
+
+	var m []interface{}
+	err = json.Unmarshal([]byte(ret), &m)
+	Expect(err).To(BeNil())
+
+	Expect(m[0].(map[string]interface{})["INDEX"]).ToNot(Equal(m[1].(map[string]interface{})["INDEX"]))
+	Expect(m[0].(map[string]interface{})["INDEX"]).ToNot(Equal(m[2].(map[string]interface{})["INDEX"]))
+	Expect(m[1].(map[string]interface{})["INDEX"]).ToNot(Equal(m[2].(map[string]interface{})["INDEX"]))
+}
 
 func TestGetTableHeader(t *testing.T) {
 
@@ -35,7 +292,7 @@ func TestGetTableHeader(t *testing.T) {
 	}
 	expected := "| ID    | LABEL               | INST. |"
 
-	actual := GetTableHeader(schema)
+	actual := getTableHeader(schema)
 
 	if actual != expected {
 		t.Errorf("Header is not correct, \nexpected:  %s\n     was: %s", expected, actual)
@@ -70,7 +327,7 @@ func TestGetTableRow(t *testing.T) {
 
 	row := []interface{}{10, "test", 33.3, map[string]string{"test": "test1", "test2": "test3"}}
 
-	actual := GetTableRow(row, schema)
+	actual := getTableRow(row, schema)
 
 	Expect(actual).To(ContainSubstring("test1"))
 	Expect(actual).To(ContainSubstring("test3"))
@@ -98,7 +355,7 @@ func TestGetTableDelimiter(t *testing.T) {
 
 	expected := "+-------+---------------------+-------+"
 
-	actual := GetTableDelimiter(schema)
+	actual := getTableDelimiter(schema)
 
 	if actual != expected {
 		t.Errorf("Delimiter is not correct, \nexpected: %s\n     was: %s", expected, actual)
@@ -140,7 +397,7 @@ func TestGetTableAsString(t *testing.T) {
 		{6, "st11r444", 2.1},
 	}
 
-	actual := GetTableAsString(data, schema)
+	actual := getTableAsString(data, schema)
 
 	if actual != expected {
 		t.Errorf("Delimiter is not correct, \nexpected:\n%s\nwas:\n%s", expected, actual)
@@ -174,7 +431,7 @@ func TestGetTableAsJSONString(t *testing.T) {
 		{6, "st11r444", 2.1},
 	}
 
-	ret, err := GetTableAsJSONString(data, schema)
+	ret, err := getTableAsJSONString(data, schema)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -225,7 +482,7 @@ func TestGetTableAsCSVString(t *testing.T) {
 		{6, "st11r444", 2.1},
 	}
 
-	actual, err := GetTableAsCSVString(data, schema)
+	actual, err := getTableAsCSVString(data, schema)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -266,8 +523,8 @@ func TestAdjustFieldSizes(t *testing.T) {
 		{5, "12", 22.1, "te"},
 		{6, "123456789", 1.2345, "t"},
 	}
-
-	AdjustFieldSizes(data, &schema)
+	table := Table{data, schema}
+	table.AdjustFieldSizes()
 
 	Expect(schema[0].FieldSize).To(Equal(3))
 	Expect(schema[1].FieldSize).To(Equal(10))
@@ -310,22 +567,23 @@ func TestRenderTable(t *testing.T) {
 		{6, "123456789", 1.2345, "t"},
 	}
 
-	s, err := RenderTable("test", "", "", data, schema)
+	table := Table{data, schema}
+	s, err := table.RenderTable("test", "", "")
 
 	Expect(err).To(BeNil())
 	Expect(s).To(ContainSubstring("test"))
 	Expect(s).To(ContainSubstring("VERY LONG"))
 
-	s, err = RenderTable("test", "", "json", data, schema)
+	s, err = table.RenderTable("test", "", "json")
 	Expect(err).To(BeNil())
 	var m []interface{}
 	err = json.Unmarshal([]byte(s), &m)
 	Expect(err).To(BeNil())
 
-	s, err = RenderTable("test", "", "csv", data, schema)
+	s, err = table.RenderTable("test", "", "csv")
 	Expect(err).To(BeNil())
 
-	s, err = RenderTable("test", "", "yaml", data, schema)
+	s, err = table.RenderTable("test", "", "yaml")
 	err = yaml.Unmarshal([]byte(s), &m)
 	Expect(err).To(BeNil())
 }
@@ -504,7 +762,8 @@ func TestRenderTransposedTable(t *testing.T) {
 		{4, "12345", 20.1, "tes"},
 	}
 
-	s, err := RenderTransposedTable("test", "", "", data, schema)
+	table := Table{data, schema}
+	s, err := table.RenderTransposedTable("test", "", "")
 
 	Expect(err).To(BeNil())
 	Expect(s).To(ContainSubstring("KEY"))
@@ -512,13 +771,13 @@ func TestRenderTransposedTable(t *testing.T) {
 	Expect(s).To(ContainSubstring("12345"))
 	Expect(s).To(ContainSubstring("20.1"))
 
-	s, err = RenderTransposedTable("test", "", "json", data, schema)
+	s, err = table.RenderTransposedTable("test", "", "json")
 	Expect(err).To(BeNil())
 	var m []interface{}
 	err = json.Unmarshal([]byte(s), &m)
 	Expect(err).To(BeNil())
 
-	s, err = RenderTransposedTable("test", "", "csv", data, schema)
+	s, err = table.RenderTransposedTable("test", "", "csv")
 	Expect(err).To(BeNil())
 }
 
@@ -531,13 +790,14 @@ func TestObjectToTable(t *testing.T) {
 	err := json.Unmarshal([]byte(_switchDeviceFixture1), &sw)
 	Expect(err).To(BeNil())
 
-	d, s, err := ObjectToTable(sw)
+	table, err := ObjectToTable(sw)
+
 	Expect(err).To(BeNil())
-	Expect(len(d)).To(Equal(40))
-	Expect(d[1]).To(Equal("UK_RDG_EVR01_00_0001_00A9_01"))
-	Expect(s[1].FieldName).To(Equal("network equipment identifier string"))
-	Expect(s[39].FieldName).To(Equal("volume template id"))
-	Expect(d[39]).To(Equal(0))
+	Expect(len(table.data[0])).To(Equal(40))
+	Expect(table.data[0][1]).To(Equal("UK_RDG_EVR01_00_0001_00A9_01"))
+	Expect(table.schema[1].FieldName).To(Equal("network equipment identifier string"))
+	Expect(table.schema[39].FieldName).To(Equal("volume template id"))
+	Expect(table.data[0][39]).To(Equal(0))
 }
 
 func TestObjToTableWithFormatter(t *testing.T) {
@@ -548,13 +808,13 @@ func TestObjToTableWithFormatter(t *testing.T) {
 	err := json.Unmarshal([]byte(_switchDeviceFixture1), &sw)
 	Expect(err).To(BeNil())
 
-	d, s, err := ObjectToTableWithFormatter(sw, NewStripPrefixFormatter("NetworkEquipment"))
+	table, err := ObjectToTableWithFormatter(sw, NewStripPrefixFormatter("NetworkEquipment"))
 	Expect(err).To(BeNil())
-	Expect(len(d)).To(Equal(40))
-	Expect(d[1]).To(Equal("UK_RDG_EVR01_00_0001_00A9_01"))
-	Expect(s[1].FieldName).To(Equal("Identifier String"))
-	Expect(s[39].FieldName).To(Equal("Volume Template Id"))
-	Expect(d[39]).To(Equal(0))
+	Expect(len(table.data[0])).To(Equal(40))
+	Expect(table.data[0][1]).To(Equal("UK_RDG_EVR01_00_0001_00A9_01"))
+	Expect(table.schema[1].FieldName).To(Equal("Identifier String"))
+	Expect(table.schema[39].FieldName).To(Equal("Volume Template Id"))
+	Expect(table.data[0][39]).To(Equal(0))
 
 }
 
@@ -579,7 +839,8 @@ func TestRenderTransposedTableHumanReadable(t *testing.T) {
 		},
 	}
 
-	s, err := RenderTransposedTableHumanReadable("test", "test", data, schema)
+	table := Table{data, schema}
+	s, err := table.RenderTransposedTableHumanReadable("test", "test")
 
 	Expect(err).To(BeNil())
 	Expect(s).To(Equal(`Field1: 10

@@ -1,26 +1,14 @@
-# golang table formatter
+package main
 
-Utility to print pretty text (ASCII) tables. It supports:
+import (
+	"fmt"
 
-* automatic field size adjustment
-* yaml, json, CSV alternative rendering
+	tableformatter "github.com/metalsoft/tableformatter"
+)
 
-```
-This is the data I have access to
-+-------+---------------------------+---------------------+-----------+--------+---------------+
-| ID    | LABEL                     | OWNER               | REL.      | STATUS | DATACENTER    |
-+-------+---------------------------+---------------------+-----------+--------+---------------+
-| 10    | test-infrastructure       | alex@alex.com       | manager   | active | uk-reading    |
-| 20    | production-infrastructure | john@alex.com       | CTO       | active | us-santaclara |
-+-------+---------------------------+---------------------+-----------+--------+---------------+
-Total: 2 testTbl
-```
+func main() {
 
-
-## Example
-
-```golang
-schema := []tableformatter.SchemaField{
+	schema := []tableformatter.SchemaField{
 		{
 			FieldName: "ID",
 			FieldType: tableformatter.TypeInt,
@@ -77,4 +65,5 @@ schema := []tableformatter.SchemaField{
 		fmt.Printf("%+v", err)
 	}
 	fmt.Printf("%s", s)
-```
+
+}

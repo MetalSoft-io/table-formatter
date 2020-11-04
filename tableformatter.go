@@ -9,12 +9,178 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/iancoleman/strcase"
 	"gopkg.in/yaml.v2"
 )
+
+//Table represents a table including data and schema
+type Table struct {
+	data   [][]interface{}
+	schema []SchemaField
+}
+
+const defaultTimeFormat = "2006-01-02T15:04:05Z" //oddly enough this is how you specify a format
+
+const (
+	//TypeInt is printed as %d
+	TypeInt = iota
+	//TypeString is printed as %s
+	TypeString = iota
+	//TypeFloat is printed as %f
+	TypeFloat = iota
+	//TypeDateTime is printed as a string after parsing
+	TypeDateTime = iota
+	//TypeInterface is printed as %v
+	TypeInterface = iota
+	//TypeBool is printed as %v
+	TypeBool = iota
+)
+
+//SchemaField defines a field in a table
+type SchemaField struct {
+	FieldName      string
+	FieldType      int
+	FieldSize      int
+	FieldPrecision int
+	FieldFormat    string
+}
+
+type lessFunc func(p1, p2 interface{}, field *SchemaField) bool
+
+// MultiSorter implements the Sort interface, sorting the changes within.
+type MultiSorter struct {
+	data    [][]interface{}
+	less    []lessFunc
+	schema  []SchemaField
+	indexes []int
+}
+
+// Sort sorts the argument slice according to the less functions passed to OrderedBy.
+func (ms *MultiSorter) Sort(data [][]interface{}) {
+	ms.data = data
+	sort.Sort(ms)
+}
+
+// Len is part of sort.Interface.
+func (ms *MultiSorter) Len() int {
+	return len(ms.data)
+}
+
+// Swap is part of sort.Interface.
+func (ms *MultiSorter) Swap(i, j int) {
+	ms.data[i], ms.data[j] = ms.data[j], ms.data[i]
+}
+
+// Less is part of sort.Interface. It is implemented by looping along the
+// less functions until it finds a comparison that discriminates between
+// the two items (one is less than the other). Note that it can call the
+// less functions twice per call. We could change the functions to return
+// -1, 0, 1 and reduce the number of calls for greater efficiency: an
+// exercise for the reader.
+func (ms *MultiSorter) Less(i, j int) bool {
+	p, q := ms.data[i], ms.data[j]
+	// Try all but the last comparison.
+	var k int
+	for k = 0; k < len(ms.less)-1; k++ {
+		less := ms.less[k]
+		index := ms.indexes[k]
+		switch {
+		case less(p[index], q[index], &ms.schema[index]):
+			// p < q, so we have a decision.
+			return true
+		case less(q[index], p[index], &ms.schema[index]):
+			// p > q, so we have a decision.
+			return false
+		}
+		// p == q; try the next comparison.
+	}
+	// All comparisons to here said "equal", so just return whatever
+	// the final comparison reports.
+	lastIndex := ms.indexes[k]
+	return ms.less[k](p[lastIndex], q[lastIndex], &ms.schema[lastIndex])
+}
+
+//TableSorter a multisorter for a table
+func TableSorter(schema []SchemaField) *MultiSorter {
+	return &MultiSorter{
+		schema: schema,
+	}
+}
+
+//OrderBy specifies the order
+func (ms *MultiSorter) OrderBy(fieldNames ...string) *MultiSorter {
+
+	ms.less = make([]lessFunc, len(fieldNames))
+	ms.indexes = make([]int, len(fieldNames))
+
+	for k, fn := range fieldNames {
+		var field *SchemaField
+		for i, f := range ms.schema {
+
+			if f.FieldName == fn {
+				field = &f
+				ms.indexes[k] = i
+				break
+			}
+		}
+
+		if field == nil {
+			fmt.Printf("could not find field with name %s\n", fn)
+			return nil
+		}
+
+		switch field.FieldType {
+		case TypeInt:
+			ms.less[k] = func(a, b interface{}, field *SchemaField) bool {
+				return a.(int) < b.(int)
+			}
+		case TypeString:
+			ms.less[k] = func(a, b interface{}, field *SchemaField) bool {
+				return a.(string) < b.(string)
+			}
+		case TypeFloat:
+			ms.less[k] = func(a, b interface{}, field *SchemaField) bool {
+				return a.(float64) < b.(float64)
+			}
+		case TypeDateTime:
+			ms.less[k] = func(a, b interface{}, field *SchemaField) bool {
+
+				layout := defaultTimeFormat
+
+				if field.FieldFormat != "" {
+					layout = field.FieldFormat
+				}
+
+				ta, err := time.Parse(layout, a.(string))
+				if err != nil {
+					fmt.Printf("could not convert string %s to date time", a.(string))
+					return false
+				}
+
+				tb, err := time.Parse(layout, b.(string))
+				if err != nil {
+					fmt.Printf("could not convert string %s to date time", b.(string))
+					return false
+				}
+
+				return ta.Before(tb)
+			}
+		case TypeBool:
+			ms.less[k] = func(a, b interface{}, field *SchemaField) bool {
+				return a.(bool) != b.(bool)
+			}
+		default:
+			fmt.Printf("could not find type %d", field.FieldType)
+		}
+	}
+
+	return ms
+}
 
 //ConsoleIOChannel represents an IO channel, typically stdin and stdout but could be anything
 type ConsoleIOChannel struct {
@@ -56,8 +222,8 @@ func SetConsoleIOChannel(in io.Reader, out io.Writer) {
 	channel.Stdout = out
 }
 
-//GetTableHeader returns the row for header (all cells strings but of the length specified in the schema)
-func GetTableHeader(schema []SchemaField) string {
+//getTableHeader returns the row for header (all cells strings but of the length specified in the schema)
+func getTableHeader(schema []SchemaField) string {
 	var alteredSchema []SchemaField
 	var header []interface{}
 
@@ -68,11 +234,11 @@ func GetTableHeader(schema []SchemaField) string {
 		})
 		header = append(header, field.FieldName)
 	}
-	return GetTableRow(header, alteredSchema)
+	return getTableRow(header, alteredSchema)
 }
 
-//GetTableRow returns the string for a row with the | delimiter
-func GetTableRow(row []interface{}, schema []SchemaField) string {
+//getTableRow returns the string for a row with the | delimiter
+func getTableRow(row []interface{}, schema []SchemaField) string {
 	var rowStr []string
 	for i, field := range schema {
 		switch field.FieldType {
@@ -92,7 +258,7 @@ func GetTableRow(row []interface{}, schema []SchemaField) string {
 }
 
 // GetCellSize calculates how wide a cell is by converting it to string and measuring it's size
-func GetCellSize(d interface{}, field *SchemaField) int {
+func getCellSize(d interface{}, field *SchemaField) int {
 	var s string
 	switch field.FieldType {
 	case TypeInt:
@@ -108,14 +274,26 @@ func GetCellSize(d interface{}, field *SchemaField) int {
 	return len(s)
 }
 
-//AdjustFieldSizes expands field sizes to match the widest cell
-func AdjustFieldSizes(data [][]interface{}, schema *[]SchemaField) {
+//getRowSize returns the row size of a table
+func getRowSize(data [][]interface{}, schema *[]SchemaField) int {
 	rowSize := len(*schema)
+	size := 0
 	for i := 0; i < rowSize; i++ {
 		f := (*schema)[i]
+		size += getCellSize(data[0][i], &f)
+	}
+	return size
+}
+
+//AdjustFieldSizes expands field sizes to match the widest cell
+func (t *Table) AdjustFieldSizes() {
+
+	rowSize := len(t.schema)
+	for i := 0; i < rowSize; i++ {
+		f := t.schema[i]
 
 		//iterate over the entire column
-		rowCount := len(data)
+		rowCount := len(t.data)
 
 		maxLen := f.FieldSize
 
@@ -124,19 +302,19 @@ func AdjustFieldSizes(data [][]interface{}, schema *[]SchemaField) {
 		}
 
 		for k := 0; k < rowCount; k++ {
-			cellSize := GetCellSize(data[k][i], &f)
+			cellSize := getCellSize(t.data[k][i], &f)
 			if cellSize > maxLen {
 				maxLen = cellSize
 			}
 		}
 		if maxLen > f.FieldSize {
-			(*schema)[i].FieldSize = maxLen + 1 //we leave a little room to the right
+			t.schema[i].FieldSize = maxLen + 1 //we leave a little room to the right
 		}
 	}
 }
 
-// GetTableDelimiter returns a delimiter row for the schema
-func GetTableDelimiter(schema []SchemaField) string {
+//getTableDelimiter returns a delimiter row for the schema
+func getTableDelimiter(schema []SchemaField) string {
 	row := "+"
 	for _, field := range schema {
 		for i := 0; i < field.FieldSize+1; i++ {
@@ -147,39 +325,39 @@ func GetTableDelimiter(schema []SchemaField) string {
 	return row
 }
 
-//GetTableAsString returns the string representation of a table.
-func GetTableAsString(data [][]interface{}, schema []SchemaField) string {
+//getTableAsString returns the string representation of a table.
+func getTableAsString(data [][]interface{}, schema []SchemaField) string {
 	var rows []string
 
-	rows = append(rows, GetTableDelimiter(schema))
-	rows = append(rows, GetTableHeader(schema))
-	rows = append(rows, GetTableDelimiter(schema))
+	rows = append(rows, getTableDelimiter(schema))
+	rows = append(rows, getTableHeader(schema))
+	rows = append(rows, getTableDelimiter(schema))
 	for _, row := range data {
-		rows = append(rows, GetTableRow(row, schema))
+		rows = append(rows, getTableRow(row, schema))
 	}
-	rows = append(rows, GetTableDelimiter(schema))
+	rows = append(rows, getTableDelimiter(schema))
 
 	return strings.Join(rows, "\n") + "\n"
 }
 
 func printTableHeader(schema []SchemaField) {
-	fmt.Println(GetTableHeader(schema))
+	fmt.Println(getTableHeader(schema))
 }
 
 func printTableRow(row []interface{}, schema []SchemaField) {
-	fmt.Println(GetTableRow(row, schema))
+	fmt.Println(getTableRow(row, schema))
 }
 
 func printTableDelimiter(schema []SchemaField) {
-	fmt.Println(GetTableDelimiter(schema))
+	fmt.Println(getTableDelimiter(schema))
 }
 
 func printTable(data [][]interface{}, schema []SchemaField) {
-	fmt.Print(GetTableAsString(data, schema))
+	fmt.Print(getTableAsString(data, schema))
 }
 
-//GetTableAsYAMLString returns a yaml.Marshal string for the given data
-func GetTableAsYAMLString(data [][]interface{}, schema []SchemaField) (string, error) {
+//getTableAsYAMLString returns a yaml.Marshal string for the given data
+func getTableAsYAMLString(data [][]interface{}, schema []SchemaField) (string, error) {
 
 	dataAsMap := make([]interface{}, len(data))
 
@@ -200,8 +378,8 @@ func GetTableAsYAMLString(data [][]interface{}, schema []SchemaField) (string, e
 	return string(ret), nil
 }
 
-//GetTableAsJSONString returns a json.MarshalIndent string for the given data
-func GetTableAsJSONString(data [][]interface{}, schema []SchemaField) (string, error) {
+//getTableAsJSONString returns a json.MarshalIndent string for the given data
+func getTableAsJSONString(data [][]interface{}, schema []SchemaField) (string, error) {
 	dataAsMap := make([]interface{}, len(data))
 
 	for k, row := range data {
@@ -220,8 +398,8 @@ func GetTableAsJSONString(data [][]interface{}, schema []SchemaField) (string, e
 	return string(ret), nil
 }
 
-//GetTableAsCSVString returns a table as a csv
-func GetTableAsCSVString(data [][]interface{}, schema []SchemaField) (string, error) {
+//getTableAsCSVString returns a table as a csv
+func getTableAsCSVString(data [][]interface{}, schema []SchemaField) (string, error) {
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
 	csvWriter := csv.NewWriter(writer)
@@ -269,24 +447,24 @@ func truncateString(s string, length int) string {
 
 //RenderTable renders a table object as a string
 //supported formats: json, csv, yaml
-func RenderTable(tableName string, topLine string, format string, data [][]interface{}, schema []SchemaField) (string, error) {
+func (t *Table) RenderTable(tableName string, topLine string, format string) (string, error) {
 	var sb strings.Builder
 
 	switch format {
 	case "json", "JSON":
-		ret, err := GetTableAsJSONString(data, schema)
+		ret, err := getTableAsJSONString(t.data, t.schema)
 		if err != nil {
 			return "", err
 		}
 		sb.WriteString(ret)
 	case "csv", "CSV":
-		ret, err := GetTableAsCSVString(data, schema)
+		ret, err := getTableAsCSVString(t.data, t.schema)
 		if err != nil {
 			return "", err
 		}
 		sb.WriteString(ret)
 	case "yaml", "YAML":
-		ret, err := GetTableAsYAMLString(data, schema)
+		ret, err := getTableAsYAMLString(t.data, t.schema)
 		if err != nil {
 			return "", err
 		}
@@ -297,14 +475,18 @@ func RenderTable(tableName string, topLine string, format string, data [][]inter
 			sb.WriteString(fmt.Sprintf("%s\n", topLine))
 		}
 
-		AdjustFieldSizes(data, &schema)
+		t.AdjustFieldSizes()
 
-		sb.WriteString(GetTableAsString(data, schema))
+		sb.WriteString(getTableAsString(t.data, t.schema))
 
-		sb.WriteString(fmt.Sprintf("Total: %d %s\n\n", len(data), tableName))
+		sb.WriteString(fmt.Sprintf("Total: %d %s\n\n", len(t.data), tableName))
 	}
 
 	return sb.String(), nil
+}
+
+func getRowWidth(data []interface{}) {
+
 }
 
 //TransposeTable turns columns into rows. It assumes an uniform length table
@@ -353,18 +535,18 @@ func ConvertToStringTable(data [][]interface{}) [][]interface{} {
 
 //RenderTransposedTable renders the text format as a key-value table. json and csv formats remain the same as render table
 //supported formats: json, csv, yaml
-func RenderTransposedTable(tableName string, topLine string, format string, data [][]interface{}, schema []SchemaField) (string, error) {
+func (t *Table) RenderTransposedTable(tableName string, topLine string, format string) (string, error) {
 
 	if format != "" {
-		return RenderTable(tableName, topLine, format, data, schema)
+		return t.RenderTable(tableName, topLine, format)
 	}
 
 	headerRow := []interface{}{}
-	for _, s := range schema {
+	for _, s := range t.schema {
 		headerRow = append(headerRow, s.FieldName)
 	}
 
-	dataAsStrings := ConvertToStringTable(data)
+	dataAsStrings := ConvertToStringTable(t.data)
 	newData := [][]interface{}{}
 	newData = append(newData, headerRow)
 	for _, row := range dataAsStrings {
@@ -386,21 +568,26 @@ func RenderTransposedTable(tableName string, topLine string, format string, data
 		},
 	}
 
-	return RenderTable(tableName, topLine, format, dataTransposed, newSchema)
+	newTable := Table{
+		dataTransposed,
+		newSchema,
+	}
+
+	return newTable.RenderTable(tableName, topLine, format)
 
 }
 
 //RenderTransposedTableHumanReadable renders an object in a human readable way
-func RenderTransposedTableHumanReadable(tableName string, topLine string, data [][]interface{}, schema []SchemaField) (string, error) {
+func (t *Table) RenderTransposedTableHumanReadable(tableName string, topLine string) (string, error) {
 
 	headerRow := []interface{}{}
-	for _, s := range schema {
+	for _, s := range t.schema {
 		headerRow = append(headerRow, s.FieldName)
 	}
 
 	var sb strings.Builder
-	for i, field := range schema {
-		sb.WriteString(fmt.Sprintf("%s: %v\n", field.FieldName, data[0][i]))
+	for i, field := range t.schema {
+		sb.WriteString(fmt.Sprintf("%s: %v\n", field.FieldName, t.data[0][i]))
 	}
 
 	return sb.String(), nil
@@ -450,12 +637,12 @@ func NewStripPrefixFormatter(prefix string) *StripPrefixFormatter {
 
 //ObjectToTable converts an object into a table directly
 //without having to manually build the schema and fields
-func ObjectToTable(obj interface{}) ([]interface{}, []SchemaField, error) {
+func ObjectToTable(obj interface{}) (*Table, error) {
 	return ObjectToTableWithFormatter(obj, NewHumanReadableFormatter())
 }
 
 //ObjectToTableWithFormatter converts an object into a table directly without having to manually build the schema and fields
-func ObjectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFormatter) ([]interface{}, []SchemaField, error) {
+func ObjectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFormatter) (*Table, error) {
 	var data []interface{}
 	var schema []SchemaField
 
@@ -486,7 +673,7 @@ func ObjectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFor
 			typeName = TypeString
 			s, err := yaml.Marshal(v.Field(i).Interface())
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			data = append(data, strings.TrimSpace(string(s)))
 		}
@@ -496,8 +683,9 @@ func ObjectToTableWithFormatter(obj interface{}, fieldNameFormatter FieldNameFor
 			FieldType: typeName,
 		})
 	}
-
-	return data, schema, nil
+	newData := [][]interface{}{data}
+	newTbl := Table{newData, schema}
+	return &newTbl, nil
 
 }
 
@@ -512,11 +700,11 @@ func RenderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 		}
 		return string(ret), nil
 	case "csv", "CSV":
-		data, schema, err := ObjectToTableWithFormatter(obj, NewPassThroughFormatter())
+		t, err := ObjectToTableWithFormatter(obj, NewPassThroughFormatter())
 		if err != nil {
 			return "", err
 		}
-		ret, err := GetTableAsCSVString([][]interface{}{data}, schema)
+		ret, err := getTableAsCSVString(t.data, t.schema)
 		if err != nil {
 			return "", err
 		}
@@ -528,11 +716,11 @@ func RenderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 		}
 		return string(ret), nil
 	default:
-		data, schema, err := ObjectToTableWithFormatter(obj, NewStripPrefixFormatter(prefixToStrip))
+		table, err := ObjectToTableWithFormatter(obj, NewStripPrefixFormatter(prefixToStrip))
 		if err != nil {
 			return "", err
 		}
-		ret, err := RenderTransposedTableHumanReadable("", "", [][]interface{}{data}, schema)
+		ret, err := table.RenderTransposedTableHumanReadable("", "")
 		if err != nil {
 			return "", err
 		}
