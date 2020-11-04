@@ -1,5 +1,7 @@
 # golang table formatter
 
+[![GoDoc](https://godoc.org/github.com/metalsoft-io/table-formatter?status.svg)](https://godoc.org/github.com/metalsoft-io/table-formatter)
+
 Utility to print pretty text (ASCII) tables. It supports:
 
 * automatic field size adjustment
@@ -20,6 +22,44 @@ Employee list:
 Total: 3 employees
 ```
 
+Folded version:
+
+```
+Employee list:
++------------------------------------+
+| Values                             |
++------------------------------------+
+| - datacenter: uk-reading           |
+|   id: 10                           |
+|   label: test-infrastructure       |
+|   owner: alex@alex.com             |
+|   rel: manager                     |
+|   status: active                   |
+|                                    |
+| - datacenter: us-santaclara        |
+|   id: 20                           |
+|   label: production-infrastructure |
+|   owner: john@alex.com             |
+|   rel: CTO                         |
+|   status: active                   |
+|                                    |
+| - datacenter: |-                   |
+|     us-santaclara                  |
+|     multiline-string               |
+|   id: 34                           |
+|   label: |-                        |
+|     production-infrastructure      |
+|     another line                   |
+|     another line                   |
+|   owner: john@alex.com             |
+|   rel: CTO                         |
+|   status: active                   |
+|                                    |
++------------------------------------+
+Total: 3 employees
+```
+
+By default it will automatically fold at 100 chars.
 
 ## Example
 
@@ -94,5 +134,4 @@ Total: 3 employees
 		fmt.Printf("%+v", err)
 	}
 	fmt.Printf("%s", s)
-
 ```
