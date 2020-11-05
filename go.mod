@@ -1,4 +1,4 @@
-module github.com/metalsoft/tableformatter
+module github.com/metalsoft-io/tableformatter
 
 go 1.12
 
