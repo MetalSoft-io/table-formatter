@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/metalsoft/tableformatter"
+	"github.com/metalsoft-io/tableformatter"
 )
 
 func main() {

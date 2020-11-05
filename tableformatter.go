@@ -498,6 +498,21 @@ func truncateString(s string, length int) string {
 	return ""
 }
 
+//RenderTableAsJSON renders the table as an array json objects
+func (t *Table) RenderTableAsJSON() (string, error) {
+	return t.RenderTableFoldable("", "", "json", defaultFoldAtLength)
+}
+
+//RenderTableAsCSV renders the table as a csv
+func (t *Table) RenderTableAsCSV() (string, error) {
+	return t.RenderTableFoldable("", "", "csv", defaultFoldAtLength)
+}
+
+//RenderTableAsYAML renders the table as a yaml object
+func (t *Table) RenderTableAsYAML() (string, error) {
+	return t.RenderTableFoldable("", "", "yaml", defaultFoldAtLength)
+}
+
 //RenderTable renders a table object as a string
 //supported formats: json, csv, yaml
 func (t *Table) RenderTable(tableName string, topLine string, format string) (string, error) {
