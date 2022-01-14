@@ -1034,4 +1034,87 @@ func TestGetFoldedTableAsString(t *testing.T) {
 	Expect(s).To(Equal(expected))
 }
 
+func colorize(str string, color string) string {
+	colorReset := "\033[0m"
+	var c string
+	switch color {
+	case "red":
+		c = "\033[12;41m"
+	case "green":
+		c = "\033[33m"
+	default:
+		c = colorReset
+	}
+
+	return fmt.Sprintf("%s%s%s", c, str, colorReset)
+
+}
+
+func TestRenderTableWithColor(t *testing.T) {
+	RegisterTestingT(t)
+	data := [][]interface{}{
+		{4, colorize("str", "red"), 20.1},
+		{6, "st11r", 22.1},
+		{5, "wt11r444", 2.3},
+		{5, "wt11r444", 2.1},
+		{5, colorize("at11r43", "green"), 2.2},
+		{4, "xxxx", 2.2},
+	}
+
+	schema := []SchemaField{
+		{
+			FieldName: "ID",
+			FieldType: TypeInt,
+			FieldSize: 6,
+		},
+		{
+			FieldName: "LABEL",
+			FieldType: TypeString,
+			FieldSize: 20,
+		},
+		{
+			FieldName:      "INST.",
+			FieldType:      TypeFloat,
+			FieldSize:      6,
+			FieldPrecision: 2,
+		},
+	}
+
+	table := Table{data, schema}
+	s, err := table.RenderTable("test", "", "")
+
+	Expect(err).To(BeNil())
+	Expect(s).To(ContainSubstring("| LABEL               | "))
+
+}
+
+func TestDeColorize(t *testing.T) {
+	RegisterTestingT(t)
+
+	field := SchemaField{
+		FieldName: "INST.",
+		FieldType: TypeString,
+		FieldSize: 1,
+	}
+
+	o := "  test   "
+	s := colorize(o, "red")
+	d := decolorize(s)
+
+	Expect(getCellSize(s, &field)).To(Equal(getCellSize(o, &field)))
+
+	Expect(d).To(Equal(o))
+
+}
+
+func TestPad(t *testing.T) {
+	RegisterTestingT(t)
+
+	o := "test"
+	s := pad(o, 7)
+
+	Expect(s).To(Equal("test   "))
+
+}
+
 const _switchDeviceFixture1 = "{\"network_equipment_id\":1,\"datacenter_name\":\"uk-reading\",\"network_equipment_driver\":\"hp5900\",\"network_equipment_position\":\"tor\",\"network_equipment_provisioner_type\":\"vpls\",\"network_equipment_identifier_string\":\"UK_RDG_EVR01_00_0001_00A9_01\",\"network_equipment_description\":\"HP Comware Software, Version 7.1.045, Release 2311P06\",\"network_equipment_management_address\":\"10.0.0.0\",\"network_equipment_management_port\":22,\"network_equipment_management_username\":\"sad\",\"network_equipment_quarantine_vlan\":5,\"network_equipment_quarantine_subnet_start\":\"11.16.0.1\",\"network_equipment_quarantine_subnet_end\":\"11.16.0.00\",\"network_equipment_quarantine_subnet_prefix_size\":24,\"network_equipment_quarantine_subnet_gateway\":\"11.16.0.1\",\"network_equipment_primary_wan_ipv4_subnet_pool\":\"11.24.0.2\",\"network_equipment_primary_wan_ipv4_subnet_prefix_size\":22,\"network_equipment_primary_san_subnet_pool\":\"100.64.0.0\",\"network_equipment_primary_san_subnet_prefix_size\":21,\"network_equipment_primary_wan_ipv6_subnet_pool_id\":1,\"network_equipment_primary_wan_ipv6_subnet_cidr\":\"2A02:0CB8:0000:0000:0000:0000:0000:0000/53\",\"network_equipment_cached_updated_timestamp\":\"2020-08-04T20:11:49Z\",\"network_equipment_management_protocol\":\"ssh\",\"chassis_rack_id\":null,\"network_equipment_cache_wrapper_json\":null,\"network_equipment_cache_wrapper_phpserialize\":\"\",\"network_equipment_tor_linked_id\":null,\"network_equipment_uplink_ip_addresses_json\":null,\"network_equipment_management_address_mask\":null,\"network_equipment_management_address_gateway\":null,\"network_equipment_requires_os_install\":false,\"network_equipment_management_mac_address\":\"00:00:00:00:00:00\",\"volume_template_id\":null,\"network_equipment_country\":null,\"network_equipment_city\":null,\"network_equipment_datacenter\":null,\"network_equipment_datacenter_room\":null,\"network_equipment_datacenter_rack\":null,\"network_equipment_rack_position_upper_unit\":null,\"network_equipment_rack_position_lower_unit\":null,\"network_equipment_serial_numbers\":null,\"network_equipment_info_json\":null,\"network_equipment_management_subnet\":null,\"network_equipment_management_subnet_prefix_size\":null,\"network_equipment_management_subnet_start\":null,\"network_equipment_management_subnet_end\":null,\"network_equipment_management_subnet_gateway\":null,\"datacenter_id_parent\":null,\"network_equipment_dhcp_packet_sniffing_is_enabled\":1,\"network_equipment_driver_dump_cached_json\":null,\"network_equipment_tags\":[],\"network_equipment_management_password\":\"ddddd\"}"

@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
-
 	"time"
 
 	"github.com/iancoleman/strcase"
@@ -205,6 +205,16 @@ func emptyString(length int) string {
 	return sb.String()
 }
 
+//pad string with spaces up to certain len
+func pad(s string, desired_len int) string {
+	current_len := len(decolorize(s))
+	l := desired_len - current_len
+	if l <= 0 {
+		return s
+	}
+	return s + emptyString(l)
+}
+
 //getTableRow returns the string for a row with the | delimiter
 func getTableRow(row []interface{}, schema []SchemaField) string {
 	//row[0] is the first cell row[1] second cell row[1][1] is the value of the second row of the second cell
@@ -222,7 +232,8 @@ func getTableRow(row []interface{}, schema []SchemaField) string {
 			splittedS := strings.Split(s, "\n")
 			multiLineCell := []string{}
 			for _, r := range splittedS {
-				multiLineCell = append(multiLineCell, fmt.Sprintf(fmt.Sprintf(" %%-%ds", field.FieldSize), r))
+				ds := " " + pad(r, field.FieldSize)
+				multiLineCell = append(multiLineCell, ds)
 			}
 			if rowHeight < len(multiLineCell) {
 				rowHeight = len(multiLineCell)
@@ -242,7 +253,8 @@ func getTableRow(row []interface{}, schema []SchemaField) string {
 		maxWidth := 0
 		for _, s := range cell {
 			if len(s) > maxWidth {
-				maxWidth = len(s)
+
+				maxWidth = len(decolorize(s))
 			}
 		}
 		newCell := []string{}
@@ -275,6 +287,12 @@ func getTableRow(row []interface{}, schema []SchemaField) string {
 	return sb.String()
 }
 
+//removes all coloring characters
+func decolorize(s string) string {
+	r := regexp.MustCompile(`\x1b\[[0-9;]*[mG]`)
+	return r.ReplaceAllLiteralString(s, "")
+}
+
 // GetCellSize calculates how wide a cell is by converting it to string and measuring it's size
 func getCellSize(d interface{}, field *SchemaField) int {
 	var s string
@@ -282,11 +300,11 @@ func getCellSize(d interface{}, field *SchemaField) int {
 	case TypeInt:
 		s = fmt.Sprintf("%d", d.(int))
 	case TypeString:
-		s = d.(string)
+		s = decolorize(d.(string))
 	case TypeFloat:
 		s = fmt.Sprintf(fmt.Sprintf("%%.%df", field.FieldPrecision), d.(float64))
 	default:
-		s = fmt.Sprintf("%v", d)
+		s = decolorize(fmt.Sprintf("%v", d))
 
 	}
 	//if multi-line measure the widest string in array
