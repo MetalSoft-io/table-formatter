@@ -446,7 +446,7 @@ func getTableAsYAMLString(data [][]interface{}, schema []SchemaField) (string, e
 		return "", err
 	}
 
-	return string(ret), nil
+	return decolorize(string(ret)), nil
 }
 
 //getTableAsJSONString returns a json.MarshalIndent string for the given data
@@ -466,7 +466,7 @@ func getTableAsJSONString(data [][]interface{}, schema []SchemaField) (string, e
 		return "", err
 	}
 
-	return string(ret), nil
+	return decolorize(string(ret)), nil
 }
 
 //getTableAsCSVString returns a table as a csv
@@ -505,7 +505,7 @@ func getTableAsCSVString(data [][]interface{}, schema []SchemaField) (string, er
 	writer.Flush()
 	csvWriter.Flush()
 
-	return buf.String(), nil
+	return decolorize(buf.String()), nil
 }
 
 func truncateString(s string, length int) string {
