@@ -87,7 +87,7 @@ func TestTableSortWithSchemaWithDateTime(t *testing.T) {
 			FieldName:   "DATE",
 			FieldType:   TypeDateTime,
 			FieldSize:   6,
-			FieldFormat: defaultTimeFormat,
+			FieldFormat: DefaultTimeFormat,
 		},
 	}
 
@@ -107,7 +107,7 @@ func TestTableSortWithSchemaWithDateTime(t *testing.T) {
 
 func TestDefaultTimeFormat(t *testing.T) {
 
-	layout := defaultTimeFormat
+	layout := DefaultTimeFormat
 
 	s := "2012-11-29T13:00:03Z"
 

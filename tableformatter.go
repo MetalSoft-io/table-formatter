@@ -23,9 +23,9 @@ type Table struct {
 }
 
 var (
-	defaultDelimiter    = "|"
-	defaultTimeFormat   = "2006-01-02T15:04:05Z" //oddly enough this is how you specify a format
-	defaultFoldAtLength = 300
+	DefaultDelimiter    = "|"
+	DefaultTimeFormat   = "2006-01-02T15:04:05Z" //oddly enough this is how you specify a format
+	DefaultFoldAtLength = 300
 )
 
 const (
@@ -152,7 +152,7 @@ func (ms *MultiSorter) OrderBy(fieldNames ...string) *MultiSorter {
 		case TypeDateTime:
 			ms.less[k] = func(a, b interface{}, field *SchemaField) bool {
 
-				layout := defaultTimeFormat
+				layout := DefaultTimeFormat
 
 				if field.FieldFormat != "" {
 					layout = field.FieldFormat
@@ -277,10 +277,10 @@ func getTableRow(row []interface{}, schema []SchemaField) string {
 	for y := 0; y < rowHeight; y++ {
 
 		for x := 0; x < len(rowStr); x++ {
-			sb.WriteString(defaultDelimiter)
+			sb.WriteString(DefaultDelimiter)
 			sb.WriteString(rowStr[x][y])
 		}
-		sb.WriteString(defaultDelimiter)
+		sb.WriteString(DefaultDelimiter)
 		if y < rowHeight-1 {
 			sb.WriteString("\n")
 		}
@@ -520,23 +520,23 @@ func truncateString(s string, length int) string {
 
 //RenderTableAsJSON renders the table as an array json objects
 func (t *Table) RenderTableAsJSON() (string, error) {
-	return t.RenderTableFoldable("", "", "json", defaultFoldAtLength)
+	return t.RenderTableFoldable("", "", "json", DefaultFoldAtLength)
 }
 
 //RenderTableAsCSV renders the table as a csv
 func (t *Table) RenderTableAsCSV() (string, error) {
-	return t.RenderTableFoldable("", "", "csv", defaultFoldAtLength)
+	return t.RenderTableFoldable("", "", "csv", DefaultFoldAtLength)
 }
 
 //RenderTableAsYAML renders the table as a yaml object
 func (t *Table) RenderTableAsYAML() (string, error) {
-	return t.RenderTableFoldable("", "", "yaml", defaultFoldAtLength)
+	return t.RenderTableFoldable("", "", "yaml", DefaultFoldAtLength)
 }
 
 //RenderTable renders a table object as a string
 //supported formats: json, csv, yaml
 func (t *Table) RenderTable(tableName string, topLine string, format string) (string, error) {
-	return t.RenderTableFoldable(tableName, topLine, format, defaultFoldAtLength)
+	return t.RenderTableFoldable(tableName, topLine, format, DefaultFoldAtLength)
 }
 
 //RenderTableFoldable renders a table object as a string
