@@ -22,9 +22,11 @@ type Table struct {
 	Schema []SchemaField
 }
 
-const defaultDelimiter = "|"
-const defaultTimeFormat = "2006-01-02T15:04:05Z" //oddly enough this is how you specify a format
-const defaultFoldAtLength = 100
+var (
+	defaultDelimiter    = "|"
+	defaultTimeFormat   = "2006-01-02T15:04:05Z" //oddly enough this is how you specify a format
+	defaultFoldAtLength = 300
+)
 
 const (
 	//TypeInt is printed as %d
