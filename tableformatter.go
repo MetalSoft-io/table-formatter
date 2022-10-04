@@ -565,7 +565,7 @@ func (t *Table) RenderTableFoldable(tableName string, topLine string, format str
 		}
 		sb.WriteString(ret)
 
-	default:
+	case "":
 		if topLine != "" {
 			sb.WriteString(fmt.Sprintf("%s\n", topLine))
 		}
@@ -583,6 +583,9 @@ func (t *Table) RenderTableFoldable(tableName string, topLine string, format str
 		}
 
 		sb.WriteString(fmt.Sprintf("Total: %d %s\n\n", len(t.Data), tableName))
+
+	default:
+		return "", fmt.Errorf("Invalid format '%s' given. Valid values are json, JSON, csv, CSV, yaml or YAML.", format)
 	}
 
 	return sb.String(), nil
@@ -815,7 +818,7 @@ func RenderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 			return "", err
 		}
 		return string(ret), nil
-	default:
+	case "":
 		table, err := ObjectToTableWithFormatter(obj, NewStripPrefixFormatter(prefixToStrip))
 		if err != nil {
 			return "", err
@@ -825,6 +828,8 @@ func RenderRawObject(obj interface{}, format string, prefixToStrip string) (stri
 			return "", err
 		}
 		return ret, nil
+	default:
+		return "", fmt.Errorf("Invalid format '%s' given. Valid values are json, JSON, csv, CSV, yaml or YAML.", format)
 	}
 
 }
